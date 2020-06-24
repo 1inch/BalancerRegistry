@@ -22,6 +22,7 @@ contract BalancerRegistry {
         bytes32 indices;
     }
 
+    mapping(address => bool) private _invalidated;
     mapping(bytes32 => SortedPools) private _pools;
     mapping(address => mapping(bytes32 => PoolPairInfo)) private _infos;
 
@@ -87,17 +88,18 @@ contract BalancerRegistry {
 
     // Add and update registry
 
-    function addPool(IBalancerPool pool) public {
-        address[] memory tokens = pool.getFinalTokens();
-        require(tokens.length <= 4, "BalancerRegistry: supporting pools with up to 4 tokens");
+    function addPool(IBalancerPool pool) public returns(uint256 listed) {
+        if (_invalidated[address(pool)]) {
+            return 0;
+        }
 
+        address[] memory tokens = pool.getFinalTokens();
         uint256[] memory weights = new uint256[](tokens.length);
         for (uint i = 0; i < tokens.length; i++) {
             weights[i] = pool.getDenormalizedWeight(tokens[i]);
         }
 
         uint256 swapFee = pool.getSwapFee();
-        uint256 listed = 0;
         for (uint i = 0; i < tokens.length; i++) {
             for (uint j = i + 1; j < tokens.length; j++) {
                 bytes32 key = _createKey(tokens[i], tokens[j]);
@@ -111,12 +113,12 @@ contract BalancerRegistry {
                 }
             }
         }
-        require(listed > 0, "All the assets were already listed");
     }
 
-    function addPools(IBalancerPool[] memory pools) public {
+    function addPools(IBalancerPool[] memory pools) public returns(uint256[] memory listed) {
+        listed = new uint256[](pools.length);
         for (uint i = 0; i < pools.length; i++) {
-            addPool(pools[i]);
+            listed[i] = addPool(pools[i]);
         }
     }
 
