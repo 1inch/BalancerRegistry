@@ -2,6 +2,21 @@ pragma solidity ^0.5.0;
 
 
 interface IBalancerRegistry {
+    event PoolAdded(
+        address indexed pool
+    );
+    event PoolTokenPairAdded(
+        address indexed pool,
+        address indexed fromToken,
+        address indexed destToken
+    );
+    event IndicesUpdated(
+        address indexed fromToken,
+        address indexed destToken,
+        bytes32 oldIndices,
+        bytes32 newIndices
+    );
+
     // Get info about pool pair for 1 SLOAD
     function getPairInfo(address pool, address fromToken, address destToken)
         external view returns(uint256 weight1, uint256 weight2, uint256 swapFee);
@@ -13,6 +28,10 @@ interface IBalancerRegistry {
         external view returns(address[] memory);
     function getPoolsWithLimit(address fromToken, address destToken, uint256 offset, uint256 limit)
         external view returns(address[] memory result);
+    function getBestPools(address fromToken, address destToken)
+        external view returns(address[] memory pools);
+    function getBestPoolsWithLimit(address fromToken, address destToken, uint256 limit)
+        external view returns(address[] memory pools);
 
     // Get swap rates
     function getPoolReturn(address pool, address fromToken, address destToken, uint256 amount)
@@ -21,7 +40,7 @@ interface IBalancerRegistry {
         external view returns(uint256[] memory result);
 
     // Add and update registry
-    function addPool(address pool) external;
-    function addPools(address[] calldata pools) external;
+    function addPool(address pool) external returns(uint256 listed);
+    function addPools(address[] calldata pools) external returns(uint256[] memory listed);
     function updatedIndices(address[] calldata tokens, uint256 lengthLimit) external;
 }

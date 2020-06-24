@@ -2,12 +2,13 @@ pragma solidity ^0.5.0;
 
 import "@openzeppelin/contracts/math/Math.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
+import "./IBalancerRegistry.sol";
 import "./IBalancerPool.sol";
 import "./BalancerLib.sol";
 import "./AddressSet.sol";
 
 
-contract BalancerRegistry {
+contract BalancerRegistry is IBalancerRegistry {
     using SafeMath for uint256;
     using AddressSet for AddressSet.Data;
 
@@ -58,9 +59,32 @@ contract BalancerRegistry {
         }
     }
 
+    function getBestPools(address fromToken, address destToken)
+        public view returns(address[] memory pools)
+    {
+        return getBestPoolsWithLimit(fromToken, destToken, 32);
+    }
+
+    function getBestPoolsWithLimit(address fromToken, address destToken, uint256 limit)
+        public view returns(address[] memory pools)
+    {
+        bytes32 key = _createKey(fromToken, destToken);
+        bytes32 indices = _pools[key].indices;
+        uint256 len = 0;
+        while (indices[len] > 0 && len < Math.min(limit, indices.length)) {
+            len++;
+        }
+
+        pools = new address[](len);
+        for (uint i = 0; i < len; i++) {
+            uint256 index = uint256(uint8(indices[i])).sub(1);
+            pools[i] = _pools[key].pools.items[index];
+        }
+    }
+
     // Swap info
 
-    function getPoolReturn(IBalancerPool pool, address fromToken, address destToken, uint256 amount)
+    function getPoolReturn(address pool, address fromToken, address destToken, uint256 amount)
         public view returns(uint256)
     {
         uint256[] memory amounts = new uint256[](1);
@@ -68,17 +92,17 @@ contract BalancerRegistry {
         return getPoolReturns(pool, fromToken, destToken, amounts)[0];
     }
 
-    function getPoolReturns(IBalancerPool pool, address fromToken, address destToken, uint256[] memory amounts)
+    function getPoolReturns(address pool, address fromToken, address destToken, uint256[] memory amounts)
         public view returns(uint256[] memory result)
     {
         bytes32 key = _createKey(fromToken, destToken);
-        PoolPairInfo memory info = _infos[address(pool)][key];
+        PoolPairInfo memory info = _infos[pool][key];
         result = new uint256[](amounts.length);
         for (uint i = 0; i < amounts.length; i++) {
             result[i] = BalancerLib.calcOutGivenIn(
-                pool.getBalance(fromToken),
+                IBalancerPool(pool).getBalance(fromToken),
                 uint256(fromToken < destToken ? info.weight1 : info.weight2),
-                pool.getBalance(destToken),
+                IBalancerPool(pool).getBalance(destToken),
                 uint256(fromToken < destToken ? info.weight2 : info.weight1),
                 amounts[i],
                 info.swapFee
@@ -88,34 +112,43 @@ contract BalancerRegistry {
 
     // Add and update registry
 
-    function addPool(IBalancerPool pool) public returns(uint256 listed) {
-        if (_invalidated[address(pool)]) {
+    function addPool(address pool) public returns(uint256 listed) {
+        if (_invalidated[pool]) {
             return 0;
         }
+        _invalidated[pool] = true;
+        emit PoolAdded(pool);
 
-        address[] memory tokens = pool.getFinalTokens();
+        address[] memory tokens = IBalancerPool(pool).getFinalTokens();
         uint256[] memory weights = new uint256[](tokens.length);
         for (uint i = 0; i < tokens.length; i++) {
-            weights[i] = pool.getDenormalizedWeight(tokens[i]);
+            weights[i] = IBalancerPool(pool).getDenormalizedWeight(tokens[i]);
         }
 
-        uint256 swapFee = pool.getSwapFee();
+        uint256 swapFee = IBalancerPool(pool).getSwapFee();
+
         for (uint i = 0; i < tokens.length; i++) {
             for (uint j = i + 1; j < tokens.length; j++) {
                 bytes32 key = _createKey(tokens[i], tokens[j]);
-                if (_pools[key].pools.add(address(pool))) {
-                    _infos[address(pool)][key] = PoolPairInfo({
+                if (_pools[key].pools.add(pool)) {
+                    _infos[pool][key] = PoolPairInfo({
                         weight1: uint80(weights[tokens[i] < tokens[j] ? i : j]),
                         weight2: uint80(weights[tokens[i] < tokens[j] ? j : i]),
                         swapFee: uint80(swapFee)
                     });
+
+                    emit PoolTokenPairAdded(
+                        pool,
+                        tokens[i] < tokens[j] ? tokens[i] : tokens[j],
+                        tokens[i] < tokens[j] ? tokens[j] : tokens[i]
+                    );
                     listed++;
                 }
             }
         }
     }
 
-    function addPools(IBalancerPool[] memory pools) public returns(uint256[] memory listed) {
+    function addPools(address[] memory pools) public returns(uint256[] memory listed) {
         listed = new uint256[](pools.length);
         for (uint i = 0; i < pools.length; i++) {
             listed[i] = addPool(pools[i]);
@@ -128,7 +161,17 @@ contract BalancerRegistry {
                 bytes32 key = _createKey(tokens[i], tokens[j]);
                 address[] memory pools = getPoolsWithLimit(tokens[i], tokens[j], 0, lengthLimit);
                 uint256[] memory invs = _getInvsForPools(tokens[i], tokens[j], pools);
-                _pools[key].indices = _buildSortIndices(invs);
+                bytes32 indices = _buildSortIndices(invs);
+
+                if (indices != _pools[key].indices) {
+                    emit IndicesUpdated(
+                        tokens[i] < tokens[j] ? tokens[i] : tokens[j],
+                        tokens[i] < tokens[j] ? tokens[j] : tokens[i],
+                        _pools[key].indices,
+                        indices
+                    );
+                    _pools[key].indices = indices;
+                }
             }
         }
     }
