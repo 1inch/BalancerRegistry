@@ -21,7 +21,25 @@ interface IBalancerRegistry {
     function getPairInfo(address pool, address fromToken, address destToken)
         external view returns(uint256 weight1, uint256 weight2, uint256 swapFee);
 
-    // Get pools for token pair
+    // Pools
+    function checkAddedPools(address pool)
+        external view returns(bool);
+    function getAddedPoolsLength()
+        external view returns(uint256);
+    function getAddedPools()
+        external view returns(address[] memory);
+    function getAddedPoolsWithLimit(uint256 offset, uint256 limit)
+        external view returns(address[] memory result);
+
+    // Tokens
+    function getAllTokensLength()
+        external view returns(uint256);
+    function getAllTokens()
+        external view returns(address[] memory);
+    function getAllTokensWithLimit(uint256 offset, uint256 limit)
+        external view returns(address[] memory result);
+
+    // Pairs
     function getPoolsLength(address fromToken, address destToken)
         external view returns(uint256);
     function getPools(address fromToken, address destToken)

@@ -215,7 +215,25 @@ interface IBalancerRegistry {
     function getPairInfo(address pool, address fromToken, address destToken)
         external view returns(uint256 weight1, uint256 weight2, uint256 swapFee);
 
-    // Get pools for token pair
+    // Pools
+    function checkAddedPools(address pool)
+        external view returns(bool);
+    function getAddedPoolsLength()
+        external view returns(uint256);
+    function getAddedPools()
+        external view returns(address[] memory);
+    function getAddedPoolsWithLimit(uint256 offset, uint256 limit)
+        external view returns(address[] memory result);
+
+    // Tokens
+    function getAllTokensLength()
+        external view returns(uint256);
+    function getAllTokens()
+        external view returns(address[] memory);
+    function getAllTokensWithLimit(uint256 offset, uint256 limit)
+        external view returns(address[] memory result);
+
+    // Pairs
     function getPoolsLength(address fromToken, address destToken)
         external view returns(uint256);
     function getPools(address fromToken, address destToken)
@@ -747,9 +765,58 @@ contract BalancerRegistry is IBalancerRegistry {
         bytes32 indices;
     }
 
-    mapping(address => bool) private _invalidated;
+    AddressSet.Data private _allTokens;
+    AddressSet.Data private _addedPools;
     mapping(bytes32 => SortedPools) private _pools;
     mapping(address => mapping(bytes32 => PoolPairInfo)) private _infos;
+
+    function checkAddedPools(address pool)
+        external view returns(bool)
+    {
+        return _addedPools.contains(pool);
+    }
+
+    function getAddedPoolsLength()
+        external view returns(uint256)
+    {
+        return _addedPools.items.length;
+    }
+
+    function getAddedPools()
+        external view returns(address[] memory)
+    {
+        return _addedPools.items;
+    }
+
+    function getAddedPoolsWithLimit(uint256 offset, uint256 limit)
+        external view returns(address[] memory result)
+    {
+        result = new address[](Math.min(limit, _addedPools.items.length - offset));
+        for (uint i = 0; i < result.length; i++) {
+            result[i] = _addedPools.items[offset + i];
+        }
+    }
+
+    function getAllTokensLength()
+        external view returns(uint256)
+    {
+        return _allTokens.items.length;
+    }
+
+    function getAllTokens()
+        external view returns(address[] memory)
+    {
+        return _allTokens.items;
+    }
+
+    function getAllTokensWithLimit(uint256 offset, uint256 limit)
+        external view returns(address[] memory result)
+    {
+        result = new address[](Math.min(limit, _allTokens.items.length - offset));
+        for (uint i = 0; i < result.length; i++) {
+            result[i] = _allTokens.items[offset + i];
+        }
+    }
 
     function getPairInfo(address pool, address fromToken, address destToken)
         external view returns(uint256 weight1, uint256 weight2, uint256 swapFee)
@@ -760,14 +827,14 @@ contract BalancerRegistry is IBalancerRegistry {
     }
 
     function getPoolsLength(address fromToken, address destToken)
-        public view returns(uint256)
+        external view returns(uint256)
     {
         bytes32 key = _createKey(fromToken, destToken);
         return _pools[key].pools.items.length;
     }
 
     function getPools(address fromToken, address destToken)
-        public view returns(address[] memory)
+        external view returns(address[] memory)
     {
         bytes32 key = _createKey(fromToken, destToken);
         return _pools[key].pools.items;
@@ -784,7 +851,7 @@ contract BalancerRegistry is IBalancerRegistry {
     }
 
     function getBestPools(address fromToken, address destToken)
-        public view returns(address[] memory pools)
+        external view returns(address[] memory pools)
     {
         return getBestPoolsWithLimit(fromToken, destToken, 32);
     }
@@ -809,7 +876,7 @@ contract BalancerRegistry is IBalancerRegistry {
     // Swap info
 
     function getPoolReturn(address pool, address fromToken, address destToken, uint256 amount)
-        public view returns(uint256)
+        external view returns(uint256)
     {
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = amount;
@@ -837,10 +904,9 @@ contract BalancerRegistry is IBalancerRegistry {
     // Add and update registry
 
     function addPool(address pool) public returns(uint256 listed) {
-        if (_invalidated[pool]) {
+        if (!_addedPools.add(pool)) {
             return 0;
         }
-        _invalidated[pool] = true;
         emit PoolAdded(pool);
 
         address[] memory tokens = IBalancerPool(pool).getFinalTokens();
@@ -852,6 +918,7 @@ contract BalancerRegistry is IBalancerRegistry {
         uint256 swapFee = IBalancerPool(pool).getSwapFee();
 
         for (uint i = 0; i < tokens.length; i++) {
+            _allTokens.add(tokens[i]);
             for (uint j = i + 1; j < tokens.length; j++) {
                 bytes32 key = _createKey(tokens[i], tokens[j]);
                 if (_pools[key].pools.add(pool)) {
@@ -872,14 +939,14 @@ contract BalancerRegistry is IBalancerRegistry {
         }
     }
 
-    function addPools(address[] memory pools) public returns(uint256[] memory listed) {
+    function addPools(address[] calldata pools) external returns(uint256[] memory listed) {
         listed = new uint256[](pools.length);
         for (uint i = 0; i < pools.length; i++) {
             listed[i] = addPool(pools[i]);
         }
     }
 
-    function updatedIndices(address[] memory tokens, uint256 lengthLimit) public {
+    function updatedIndices(address[] calldata tokens, uint256 lengthLimit) external {
         for (uint i = 0; i < tokens.length; i++) {
             for (uint j = i + 1; j < tokens.length; j++) {
                 bytes32 key = _createKey(tokens[i], tokens[j]);
