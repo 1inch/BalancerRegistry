@@ -41,7 +41,7 @@ start_ganache() {
     if [ "$SOLIDITY_COVERAGE" = true ]; then
         yarn run testrpc-sc --gasLimit 0xfffffffffff --port "$ganache_port" "${accounts[@]}" > /dev/null &
     else
-        yarn run ganache-cli --gasLimit 0xfffffffffff --port "$ganache_port" "${accounts[@]}" > /dev/null &
+        yarn run ganache-cli --fork $ETH_NODE --gasLimit 0xfffffffffff --port "$ganache_port" "${accounts[@]}" > /dev/null &
     fi
 
     ganache_pid=$!
@@ -68,5 +68,5 @@ if [ "$SOLIDITY_COVERAGE" = true ]; then
         cat coverage/lcov.info | yarn run coveralls
     fi
 else
-    yarn run truffle test "$@"
+    yarn run truffle test --stacktrace "$@"
 fi

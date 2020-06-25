@@ -950,7 +950,7 @@ contract BalancerRegistry is IBalancerRegistry {
         for (uint i = 0; i < tokens.length; i++) {
             for (uint j = i + 1; j < tokens.length; j++) {
                 bytes32 key = _createKey(tokens[i], tokens[j]);
-                address[] memory pools = getPoolsWithLimit(tokens[i], tokens[j], 0, lengthLimit);
+                address[] memory pools = getPoolsWithLimit(tokens[i], tokens[j], 0, Math.min(256, lengthLimit));
                 uint256[] memory invs = _getInvsForPools(tokens[i], tokens[j], pools);
                 bytes32 indices = _buildSortIndices(invs);
 
@@ -998,7 +998,7 @@ contract BalancerRegistry is IBalancerRegistry {
     {
         uint256 result = 0;
         uint256 prevInv = uint256(-1);
-        for (uint i = 0; i < 32; i++) {
+        for (uint i = 0; i < Math.min(invs.length, 32); i++) {
             uint256 bestIndex = 0;
             for (uint j = 0; j < invs.length; j++) {
                 if ((invs[j] > invs[bestIndex] && invs[j] < prevInv) || invs[bestIndex] >= prevInv) {
