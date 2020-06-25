@@ -41,6 +41,7 @@ start_ganache() {
     if [ "$SOLIDITY_COVERAGE" = true ]; then
         yarn run testrpc-sc --gasLimit 0xfffffffffff --port "$ganache_port" "${accounts[@]}" > /dev/null &
     else
+        [ -z "$ETH_NODE" ] && source .env
         yarn run ganache-cli --fork $ETH_NODE --gasLimit 0xfffffffffff --port "$ganache_port" "${accounts[@]}" > /dev/null &
     fi
 
