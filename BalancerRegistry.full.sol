@@ -254,7 +254,9 @@ interface IBalancerRegistry {
     // Add and update registry
     function addPool(address pool) external returns(uint256 listed);
     function addPools(address[] calldata pools) external returns(uint256[] memory listed);
-    function updatedIndices(address[] calldata tokens, uint256 lengthLimit) external;
+    function getUpdateHint(address[] calldata tokens, uint256 lengthLimit) external returns(bytes memory);
+    function updatedIndices(address[] calldata tokens, uint256 lengthLimit) external returns(bytes memory);
+    function updatedIndices(address[] calldata tokens, uint256 lengthLimit, bytes calldata hint) external returns(bytes memory);
 }
 
 // File: contracts/IBalancerPool.sol
@@ -946,7 +948,15 @@ contract BalancerRegistry is IBalancerRegistry {
         }
     }
 
-    function updatedIndices(address[] calldata tokens, uint256 lengthLimit) external {
+    function updatedIndices(address[] calldata tokens, uint256 lengthLimit) external returns(bytes memory) {
+        return updatedIndices(tokens, lengthLimit, new bytes(0));
+    }
+
+    function getUpdateHint(address[] calldata tokens, uint256 lengthLimit) external returns(bytes memory) {
+        uint256 combinations = tokens.length * (tokens.length - 1) / 2;
+        bytes memory hint = new bytes((combinations + 7) / 8);
+
+        uint256 index = 0;
         for (uint i = 0; i < tokens.length; i++) {
             for (uint j = i + 1; j < tokens.length; j++) {
                 bytes32 key = _createKey(tokens[i], tokens[j]);
@@ -954,17 +964,48 @@ contract BalancerRegistry is IBalancerRegistry {
                 uint256[] memory invs = _getInvsForPools(tokens[i], tokens[j], pools);
                 bytes32 indices = _buildSortIndices(invs);
 
-                if (indices != _pools[key].indices) {
-                    emit IndicesUpdated(
-                        tokens[i] < tokens[j] ? tokens[i] : tokens[j],
-                        tokens[i] < tokens[j] ? tokens[j] : tokens[i],
-                        _pools[key].indices,
-                        indices
-                    );
-                    _pools[key].indices = indices;
+                if (indices == _pools[key].indices) {
+                    hint[index / 8] |= bytes1(uint8(1 << (index & 7)));
                 }
+                index++;
             }
         }
+
+        return hint;
+    }
+
+    function updatedIndices(address[] memory tokens, uint256 lengthLimit, bytes memory hint) public returns(bytes memory) {
+        if (hint.length == 0) {
+            uint256 combinations = tokens.length * (tokens.length - 1) / 2;
+            hint = new bytes((combinations + 7) / 8);
+        }
+
+        uint256 index = 0;
+        for (uint i = 0; i < tokens.length; i++) {
+            for (uint j = i + 1; j < tokens.length; j++) {
+                if (hint[index / 8] & bytes1(uint8(1 << (index & 7))) == 0) {
+                    bytes32 key = _createKey(tokens[i], tokens[j]);
+                    address[] memory pools = getPoolsWithLimit(tokens[i], tokens[j], 0, Math.min(256, lengthLimit));
+                    uint256[] memory invs = _getInvsForPools(tokens[i], tokens[j], pools);
+                    bytes32 indices = _buildSortIndices(invs);
+
+                    if (indices != _pools[key].indices) {
+                        emit IndicesUpdated(
+                            tokens[i] < tokens[j] ? tokens[i] : tokens[j],
+                            tokens[i] < tokens[j] ? tokens[j] : tokens[i],
+                            _pools[key].indices,
+                            indices
+                        );
+                        _pools[key].indices = indices;
+                    } else {
+                        hint[index / 8] |= bytes1(uint8(1 << (index & 7)));
+                    }
+                }
+                index++;
+            }
+        }
+
+        return hint;
     }
 
     // Internal

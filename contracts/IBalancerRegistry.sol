@@ -60,5 +60,7 @@ interface IBalancerRegistry {
     // Add and update registry
     function addPool(address pool) external returns(uint256 listed);
     function addPools(address[] calldata pools) external returns(uint256[] memory listed);
-    function updatedIndices(address[] calldata tokens, uint256 lengthLimit) external;
+    function getUpdateHint(address[] calldata tokens, uint256 lengthLimit) external returns(bytes memory);
+    function updatedIndices(address[] calldata tokens, uint256 lengthLimit) external returns(bytes memory);
+    function updatedIndices(address[] calldata tokens, uint256 lengthLimit, bytes calldata hint) external returns(bytes memory);
 }
