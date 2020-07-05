@@ -239,7 +239,7 @@ contract BalancerRegistry is IBalancerRegistry {
         uint256 index = 0;
         for (uint i = 0; i < tokens.length; i++) {
             for (uint j = i + 1; j < tokens.length; j++) {
-                if (hint[index / 8] & bytes1(uint8(1 << (index & 7))) == 0) {
+                if (hint.length < index / 8 || hint[index / 8] & bytes1(uint8(1 << (index & 7))) == 0) {
                     bytes32 key = _createKey(tokens[i], tokens[j]);
                     address[] memory pools = getPoolsWithLimit(tokens[i], tokens[j], 0, Math.min(256, lengthLimit));
                     uint256[] memory invs = _getInvsForPools(tokens[i], tokens[j], pools);

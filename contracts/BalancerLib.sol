@@ -215,6 +215,9 @@ library BalancerLib {
         internal pure
         returns (uint tokenAmountOut)
     {
+        if (tokenBalanceIn == 0 || tokenBalanceOut == 0 || tokenAmountIn == 0) {
+            return 0;
+        }
         uint weightRatio = bdiv(tokenWeightIn, tokenWeightOut);
         uint adjustedIn = bsub(BONE, swapFee);
         adjustedIn = bmul(tokenAmountIn, adjustedIn);
@@ -246,6 +249,9 @@ library BalancerLib {
         internal pure
         returns (uint tokenAmountIn)
     {
+        if (tokenBalanceIn == 0 || tokenBalanceOut == 0 || tokenAmountOut == 0) {
+            return 0;
+        }
         uint weightRatio = bdiv(tokenWeightOut, tokenWeightIn);
         uint diff = bsub(tokenBalanceOut, tokenAmountOut);
         uint y = bdiv(tokenBalanceOut, diff);

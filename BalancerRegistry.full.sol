@@ -491,6 +491,9 @@ library BalancerLib {
         internal pure
         returns (uint tokenAmountOut)
     {
+        if (tokenBalanceIn == 0 || tokenBalanceOut == 0 || tokenAmountIn == 0) {
+            return 0;
+        }
         uint weightRatio = bdiv(tokenWeightIn, tokenWeightOut);
         uint adjustedIn = bsub(BONE, swapFee);
         adjustedIn = bmul(tokenAmountIn, adjustedIn);
@@ -522,6 +525,9 @@ library BalancerLib {
         internal pure
         returns (uint tokenAmountIn)
     {
+        if (tokenBalanceIn == 0 || tokenBalanceOut == 0 || tokenAmountOut == 0) {
+            return 0;
+        }
         uint weightRatio = bdiv(tokenWeightOut, tokenWeightIn);
         uint diff = bsub(tokenBalanceOut, tokenAmountOut);
         uint y = bdiv(tokenBalanceOut, diff);
@@ -983,7 +989,7 @@ contract BalancerRegistry is IBalancerRegistry {
         uint256 index = 0;
         for (uint i = 0; i < tokens.length; i++) {
             for (uint j = i + 1; j < tokens.length; j++) {
-                if (hint[index / 8] & bytes1(uint8(1 << (index & 7))) == 0) {
+                if (hint.length < index / 8 || hint[index / 8] & bytes1(uint8(1 << (index & 7))) == 0) {
                     bytes32 key = _createKey(tokens[i], tokens[j]);
                     address[] memory pools = getPoolsWithLimit(tokens[i], tokens[j], 0, Math.min(256, lengthLimit));
                     uint256[] memory invs = _getInvsForPools(tokens[i], tokens[j], pools);
